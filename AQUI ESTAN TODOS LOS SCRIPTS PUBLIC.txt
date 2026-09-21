@@ -1,0 +1,51 @@
+AQUI ESTAN TODOS LOS SCRIPTS PUBLICADOS
+
+
+
+1. AutoBlock_v16_65 ofuscado
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/Script-ofuzcado/refs/heads/main/AutoBlock_v16_65%20ofuscado%20(2).lua"))()
+
+2. monster run
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/Script-ofuzcado/refs/heads/main/monster%20run.lua"))()
+
+RemoteSpy_v5_1
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/RemoteSpy_v5_1%20(2).lua"))()
+
+4. autoblock16.65.lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/autoblock16.65.lua"))()
+
+5. dashcancel ofuscado.lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/dashcancel%20ofuscado.lua"))()
+
+6. monster runners.
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/monster%20runners.lua"))()
+
+7. unificado_v3_6_4 
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/unificado_v3_6_4%20(2).lua"))()
+
+
+8. King Tech
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/King%20Tech.lua"))()
+
+9. tech supa
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/tech%20supa.lua"))()
+
+10. FF_AutoPlayer_v50
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/FF_AutoPlayer_v50.lua"))()
+
+
+11. Pastebin LWZt5KZ3
+loadstring(game:HttpGet("https://pastebin.com/raw/LWZt5KZ3"))()
+
+
+12. Arena De Peleas.lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/Arena%20De%20Peleas.lua"))()
+
+
+13. FPS un toque.lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/FPS%20un%20toque.lua"))()
+
+14. Legends Battlegrounds Script 
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/Legends%20Battlegrounds%20Script%20.lua"))()
+
+estos son scripts creados por alanbeikers11
