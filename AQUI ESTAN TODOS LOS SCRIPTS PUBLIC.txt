@@ -48,4 +48,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-
 14. Legends Battlegrounds Script 
 loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/Legends%20Battlegrounds%20Script%20.lua"))()
 
+15, generador de load
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/generador%20de%20load.txt"))()
+
 estos son scripts creados por alanbeikers11
