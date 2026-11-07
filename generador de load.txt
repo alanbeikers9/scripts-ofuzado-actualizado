@@ -1,71 +1,123 @@
 -- =====================================================================
---  LOADSTRINGER · Generador de loadstrings con AlanUI
+--  LOADSTRINGER v2 (MOBILE SAFE) - AlanUI moderno by AlanbeikersFF
 -- =====================================================================
 
--- 1. Cargar AlanUI
-local AlanUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/AlanUI/main/AlanUI.lua"))()
+local AlanUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/AlanUI-Library-Roblox/refs/heads/main/AlanUI.lua"))()
+AlanUI.Opciones.IconosPropios = true
+local HttpService = game:GetService("HttpService")
 
--- =====================================================================
---  2. ESTADO INTERNO
--- =====================================================================
+local function fsDisponible()
+    return type(writefile) == "function" and type(readfile) == "function"
+end
+
 local estado = {
-    urlOriginal   = "",
-    urlNormalizada = "",
-    tipoDetectado = "Sin URL",
-    usarPcall     = true,
-    usarTrue      = true,
-    pcallVerbose  = false,
+    urlOriginal     = "",
+    urlNormalizada  = "",
+    tipoDetectado   = "Sin URL",
+    usarPcall       = true,
+    pcallVerbose    = false,
+    usarTrue        = true,
+    usarGetgenv     = false,
+    conComentario   = false,
+    soloFuncion     = false,
 }
 
 -- =====================================================================
---  3. DETECTOR / NORMALIZADOR DE URL
+--  NORMALIZADOR DE URLs
 -- =====================================================================
--- Convierte URLs "humanas" (pastebin.com/XXXX, github.com/.../blob/...)
--- al formato "raw" que game:HttpGet realmente puede leer.
-local function normalizarURL(url)
-    if type(url) ~= "string" then return "", "inválido" end
-    url = url:gsub("^%s+", ""):gsub("%s+$", "")
-    if url == "" then return "", "vacío" end
+local PATRONES_URL = {
+    { patron = "^https?://pastebin%.com/raw/([%w]+)", formato = nil,
+      nombre = "Pastebin (raw)" },
+    { patron = "^https?://pastebin%.com/([%w]+)/?$",
+      formato = "https://pastebin.com/raw/%1",
+      nombre  = "Pastebin (convertido)",
+      excluir = function(id) return id == "raw" end },
+    { patron = "^https?://gist%.github%.com/([^/]+)/([%w]+)/?$",
+      formato = "https://gist.githubusercontent.com/%1/%2/raw",
+      nombre  = "GitHub Gist (convertido)" },
+    { patron = "^https?://raw%.githubusercontent%.com/", formato = nil,
+      nombre = "GitHub (raw)" },
+    { patron = "^https?://github%.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$",
+      formato = "https://raw.githubusercontent.com/%1/%2/%3/%4",
+      nombre  = "GitHub (convertido)",
+      limpiar = true },
+    { patron = "^https?://hastebin%.com/([%w]+)/?$",
+      formato = "https://hastebin.com/raw/%1",
+      nombre  = "Hastebin (convertido)",
+      excluir = function(id) return id == "raw" end },
+    { patron = "^https?://www%.hastebin%.com/([%w]+)/?$",
+      formato = "https://hastebin.com/raw/%1",
+      nombre  = "Hastebin (convertido)",
+      excluir = function(id) return id == "raw" end },
+    { patron = "^https?://hastebin%.com/raw/([%w]+)", formato = nil,
+      nombre = "Hastebin (raw)" },
+    { patron = "^https?://rentry%.co/([%w]+)/raw$", formato = nil,
+      nombre = "Rentry (raw)" },
+    { patron = "^https?://rentry%.co/([%w]+)/?$",
+      formato = "https://rentry.co/%1/raw",
+      nombre  = "Rentry (convertido)",
+      excluir = function(id)
+          return id == "raw" or id == "edit" or id == "login"
+              or id == "logout" or id == "how" or id == "privacy"
+              or id == "terms" or id == "api"
+      end },
+    { patron = "^https?://paste%.ee/r/([%w]+)", formato = nil,
+      nombre = "paste.ee (raw)" },
+    { patron = "^https?://paste%.ee/p/([%w]+)",
+      formato = "https://paste.ee/r/%1",
+      nombre  = "paste.ee (convertido)" },
+    { patron = "^https?://pasteblox%.com/raw/([%w]+)", formato = nil,
+      nombre = "pasteblox (raw)" },
+    { patron = "^https?://pasteblox%.com/p/([%w]+)",
+      formato = "https://pasteblox.com/raw/%1",
+      nombre  = "pasteblox (convertido)" },
+    { patron = "^https?://", formato = nil, nombre = "URL directa" },
+}
 
-    -- Pastebin raw (ya está listo)
-    if url:match("^https?://pastebin%.com/raw/[%w]+") then
-        return url, "Pastebin (raw)"
+local function normalizarURL(url)
+    if type(url) ~= "string" then return "", "invalido" end
+    url = url:gsub("^%s+", ""):gsub("%s+$", "")
+    if url == "" then return "", "vacio" end
+
+    for _, regla in ipairs(PATRONES_URL) do
+        local c1, c2, c3, c4 = url:match(regla.patron)
+        if c1 ~= nil or not regla.patron:find("%(") then
+            if not (regla.excluir and c1 and regla.excluir(c1)) then
+                if regla.limpiar and c4 then
+                    c4 = c4:gsub("%?.*$", "")
+                end
+                if regla.formato then
+                    local ok, resultado = pcall(string.format, regla.formato, c1, c2, c3, c4)
+                    if ok and resultado then return resultado, regla.nombre end
+                else
+                    return url, regla.nombre
+                end
+            end
+        end
     end
-    -- Pastebin normal -> raw
-    local pastebinId = url:match("^https?://pastebin%.com/([%w]+)/?$")
-    if pastebinId and pastebinId ~= "raw" then
-        return "https://pastebin.com/raw/" .. pastebinId, "Pastebin (convertido)"
-    end
-    -- GitHub raw (ya está listo)
-    if url:match("^https?://raw%.githubusercontent%.com/") then
-        return url, "GitHub (raw)"
-    end
-    -- GitHub blob -> raw.githubusercontent.com
-    local ghUser, ghRepo, ghBranch, ghPath =
-        url:match("^https?://github%.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$")
-    if ghUser then
-        ghPath = ghPath:gsub("%?.*$", "") -- quitar ?raw=true, etc.
-        return string.format(
-            "https://raw.githubusercontent.com/%s/%s/%s/%s",
-            ghUser, ghRepo, ghBranch, ghPath
-        ), "GitHub (convertido)"
-    end
-    -- URL genérica http(s)
-    if url:match("^https?://") then
-        return url, "URL directa"
-    end
-    -- Sin esquema
-    return url, "desconocida (¿falta https://?)"
+
+    return url, "desconocida (falta https://?)"
 end
 
--- Escapa comillas/backslash por si el usuario pegó algo raro.
+-- =====================================================================
+--  GENERADOR
+-- =====================================================================
+local function hashURL(url)
+    local hash = 5381
+    for i = 1, #url do
+        hash = (hash * 33 + url:byte(i)) % 2147483647
+    end
+    return hash
+end
+
+local function nombreGuard(url)
+    return "Loadstringer_" .. tostring(hashURL(url))
+end
+
 local function escaparParaLua(texto)
     return (texto:gsub("\\", "\\\\"):gsub('"', '\\"'))
 end
 
--- =====================================================================
---  4. GENERADOR DEL LOADSTRING
--- =====================================================================
 local function generarLoadstring()
     if estado.urlOriginal == "" then
         return "-- Pega una URL arriba para comenzar"
@@ -73,72 +125,152 @@ local function generarLoadstring()
 
     local urlFinal = escaparParaLua(estado.urlNormalizada)
 
-    -- Parámetro "true" (evita caché) o no
-    local httpCall
-    if estado.usarTrue then
-        httpCall = string.format('game:HttpGet("%s", true)', urlFinal)
-    else
-        httpCall = string.format('game:HttpGet("%s")', urlFinal)
+    local httpCall = estado.usarTrue
+        and string.format('game:HttpGet("%s", true)', urlFinal)
+        or  string.format('game:HttpGet("%s")', urlFinal)
+
+    local cuerpo = "loadstring(" .. httpCall .. ")"
+
+    if estado.soloFuncion then
+        if estado.conComentario then
+            return "--[Loadstringer] " .. estado.urlNormalizada .. "\n" .. cuerpo
+        end
+        return cuerpo
     end
 
-    local cuerpo = "loadstring(" .. httpCall .. ")()"
+    cuerpo = cuerpo .. "()"
 
-    -- Envolver en pcall (simple o verbose)
+    if estado.usarGetgenv then
+        local guard = nombreGuard(estado.urlNormalizada)
+        cuerpo = string.format(
+            "if not getgenv().%s then\n    getgenv().%s = true\n    %s\nend",
+            guard, guard, cuerpo:gsub("\n", "\n    ")
+        )
+    end
+
     if estado.usarPcall then
         if estado.pcallVerbose then
-            return "local ok, err = pcall(function()\n    " .. cuerpo ..
-                "\nend)\nif not ok then warn(\"[Loadstringer] Error:\", err) end"
+            local indentado = cuerpo:gsub("\n", "\n    ")
+            cuerpo = string.format(
+                "local ok, err = pcall(function()\n    %s\nend)\nif not ok then warn(\"[Loadstringer] Error:\", err) end",
+                indentado
+            )
         else
-            return "pcall(function() " .. cuerpo .. " end)"
+            cuerpo = "pcall(function() " .. cuerpo .. " end)"
         end
+    end
+
+    if estado.conComentario then
+        cuerpo = "--[Loadstringer] " .. estado.urlNormalizada .. "\n" .. cuerpo
     end
 
     return cuerpo
 end
 
 -- =====================================================================
---  5. VENTANA
+--  HISTORIAL
 -- =====================================================================
-local Ventana = AlanUI:CrearVentana({
-    Titulo     = "Loadstringer",
-    Subtitulo  = "Generador de loadstrings",
-    TamanoX    = 580,
-    TamanoY    = 480,
-    Buscador   = false,
-})
+local HISTORIAL_MAX  = 10
+local HISTORIAL_RUTA = "Loadstringer/historial.json"
+local historialCache = nil
 
-local Tab = Ventana:CrearTab("Generador", "🔗")
-
--- Variables para actualizar desde callbacks (se asignan luego)
-local lblTipoURL
-local parrafoResultado
-local ultimoResultado = "-- Esperando URL..."
-
-local function actualizarTodo()
-    local normalizada, tipo = normalizarURL(estado.urlOriginal)
-    estado.urlNormalizada = normalizada
-    estado.tipoDetectado  = tipo
-
-    if lblTipoURL and lblTipoURL.Set then
-        lblTipoURL.Set(tipo)
-    end
-
-    ultimoResultado = generarLoadstring()
-    if parrafoResultado and parrafoResultado.Set then
-        parrafoResultado.Set(ultimoResultado)
+local function asegurarCarpetaHistorial()
+    if not fsDisponible() then return end
+    if type(isfolder) == "function" and type(makefolder) == "function" then
+        if not isfolder("Loadstringer") then pcall(makefolder, "Loadstringer") end
     end
 end
 
+local function cargarHistorial()
+    if historialCache then return historialCache end
+    historialCache = {}
+    if not fsDisponible() then return historialCache end
+    if type(isfile) ~= "function" or not isfile(HISTORIAL_RUTA) then return historialCache end
+
+    local ok, texto = pcall(readfile, HISTORIAL_RUTA)
+    if not ok or not texto then return historialCache end
+
+    local okDec, datos = pcall(function() return HttpService:JSONDecode(texto) end)
+    if okDec and type(datos) == "table" and type(datos.urls) == "table" then
+        for _, u in ipairs(datos.urls) do
+            if type(u) == "string" and u ~= "" and #historialCache < HISTORIAL_MAX then
+                table.insert(historialCache, u)
+            end
+        end
+    end
+    return historialCache
+end
+
+local function guardarHistorial()
+    if not fsDisponible() or type(writefile) ~= "function" then return end
+    asegurarCarpetaHistorial()
+    local datos = { urls = historialCache or {} }
+    pcall(function()
+        writefile(HISTORIAL_RUTA, HttpService:JSONEncode(datos))
+    end)
+end
+
+local function agregarAlHistorial(url)
+    if type(url) ~= "string" or url == "" then return cargarHistorial() end
+    local h = cargarHistorial()
+    for i = #h, 1, -1 do
+        if h[i] == url then table.remove(h, i) end
+    end
+    table.insert(h, 1, url)
+    while #h > HISTORIAL_MAX do table.remove(h) end
+    guardarHistorial()
+    return h
+end
+
+local function limpiarHistorial()
+    historialCache = {}
+    guardarHistorial()
+    return historialCache
+end
+
 -- =====================================================================
---  6. SECCIÓN 1 · URL del script
+--  VISTA PREVIA (CACHE)
 -- =====================================================================
-local secURL = Tab:CrearSeccion("Paso 1 · URL del script")
+local PREVIEW_LIMITE = 1500
+local PREVIEW_TTL    = 60
+local cachePreview   = {}
+
+local function formatearTamano(n)
+    if n < 1000 then return n .. " chars" end
+    if n < 1000000 then return string.format("%.1fk chars", n / 1000) end
+    return string.format("%.1fM chars", n / 1000000)
+end
+
+-- =====================================================================
+--  VENTANA
+-- =====================================================================
+local Ventana = AlanUI:CrearVentana({
+    Titulo        = "Loadstringer",
+    Subtitulo     = "Generador de loadstrings",
+    TamanoX       = 600,
+    TamanoY       = 540,
+    EstiloVisual  = "moderno",
+    Buscador      = false,
+    AutoGuardar   = true,
+    NombreConfig  = "loadstringer_generator_v2",
+})
+
+local Tab = Ventana:CrearTab("Generador", "@preinstalada")
+
+local lblTipoURL, parrafoResultado, lblStats, parrafoPreview, dropdownHistorial
+local ultimoResultado = "-- Esperando URL..."
+local actualizarTodo
+
+-- =====================================================================
+--  SECCION 1 - URL
+-- =====================================================================
+local secURL = Tab:CrearSeccion("Paso 1 - URL del script")
 
 secURL:Input({
     Texto       = "URL",
     Flag        = "url_input",
-    Placeholder = "https://pastebin.com/XXXX  |  https://github.com/user/repo/blob/main/file.lua",
-    Tooltip     = "Pega cualquier URL. Si es de Pastebin o GitHub, se convierte automáticamente a 'raw'",
+    Placeholder = "https://pastebin.com/XXXX",
+    Tooltip     = "Pega cualquier URL. Pastebin, GitHub, Hastebin, Rentry y otros se convierten a raw",
     Callback    = function(v)
         estado.urlOriginal = v
         actualizarTodo()
@@ -149,148 +281,230 @@ lblTipoURL = secURL:Label({
     Texto   = "Detectado",
     Flag    = "url_tipo",
     Valor   = "Sin URL",
-    Tooltip = "Tipo de URL reconocida automáticamente",
-})
-
-secURL:Parrafo({
-    Contenido = "Pega una URL de Pastebin o GitHub. El script la convierte al formato 'raw' que game:HttpGet puede leer. Las URLs directas http(s) se dejan igual.",
+    Tooltip = "Tipo de URL reconocida",
 })
 
 -- =====================================================================
---  7. SECCIÓN 2 · Opciones de generación
+--  SECCION 2 - HISTORIAL
 -- =====================================================================
-local secOpt = Tab:CrearSeccion("Paso 2 · Opciones")
+local secHist = Tab:CrearSeccion("Historial reciente", {
+    Colapsable = true,
+    ColapsadaPorDefecto = true,
+})
 
-secOpt:Toggle({
-    Texto    = "Envolver en pcall (recomendado)",
-    Flag     = "opt_pcall",
-    Defecto  = true,
-    Tooltip  = "Evita que un error del script externo rompa tu ejecutor o el resto de tu código",
+dropdownHistorial = secHist:Dropdown({
+    Texto    = "URLs recientes",
+    Flag     = "hist_dropdown",
+    Opciones = cargarHistorial(),
+    Tooltip  = "Elegi una URL para cargarla",
     Callback = function(v)
-        estado.usarPcall = v
-        actualizarTodo()
+        if type(v) == "string" and v ~= "" and AlanUI.Elementos and AlanUI.Elementos["url_input"] then
+            AlanUI.Elementos["url_input"]:Set(v)
+        end
     end,
 })
 
+local grupoHist = secHist:Grupo()
+grupoHist:Boton({
+    Texto    = "Refrescar",
+    Tooltip  = "Vuelve a leer el historial",
+    Callback = function()
+        historialCache = nil
+        local opts = cargarHistorial()
+        if dropdownHistorial.ActualizarOpciones then
+            dropdownHistorial:ActualizarOpciones(opts)
+        end
+        AlanUI:Notificar({ Titulo = "Historial", Texto = "Lista refrescada", Duracion = 1.5 })
+    end,
+})
+grupoHist:Boton({
+    Texto    = "Limpiar",
+    Tooltip  = "Borra el historial",
+    Callback = function()
+        limpiarHistorial()
+        if dropdownHistorial.ActualizarOpciones then
+            dropdownHistorial:ActualizarOpciones({})
+        end
+        AlanUI:Notificar({ Titulo = "Historial", Texto = "Historial vaciado", Duracion = 2 })
+    end,
+})
+
+-- =====================================================================
+--  SECCION 3 - OPCIONES
+-- =====================================================================
+local secOpt = Tab:CrearSeccion("Paso 2 - Opciones")
+
 secOpt:Toggle({
-    Texto    = "Obtener última versión (parámetro 'true')",
+    Texto    = "Usar true (ultima version)",
     Flag     = "opt_true",
     Defecto  = true,
-    Tooltip  = "Agrega el segundo parámetro true a HttpGet para ignorar la caché del ejecutor y traer la versión más reciente",
-    Callback = function(v)
-        estado.usarTrue = v
-        actualizarTodo()
-    end,
+    Tooltip  = "Agrega true a HttpGet para ignorar cache",
+    Callback = function(v) estado.usarTrue = v; actualizarTodo() end,
 })
 
 secOpt:Toggle({
-    Texto    = "pcall con reporte de errores",
+    Texto    = "Envolver en pcall",
+    Flag     = "opt_pcall",
+    Defecto  = true,
+    Tooltip  = "Evita que un error rompa tu ejecutor",
+    Callback = function(v) estado.usarPcall = v; actualizarTodo() end,
+})
+
+secOpt:Toggle({
+    Texto    = "pcall con reporte (warn)",
     Flag     = "opt_pcall_verbose",
     Defecto  = false,
-    Tooltip  = "Si el pcall falla, muestra el error en la consola (F9) con warn(). Requiere 'Envolver en pcall' activado",
-    Callback = function(v)
-        estado.pcallVerbose = v
-        actualizarTodo()
-    end,
+    Tooltip  = "Muestra el error en consola",
+    Callback = function(v) estado.pcallVerbose = v; actualizarTodo() end,
+})
+
+secOpt:Toggle({
+    Texto    = "Anti doble ejecucion (getgenv)",
+    Flag     = "opt_getgenv",
+    Defecto  = false,
+    Tooltip  = "Evita ejecutar el script dos veces",
+    Callback = function(v) estado.usarGetgenv = v; actualizarTodo() end,
+})
+
+secOpt:Toggle({
+    Texto    = "Comentario de origen",
+    Flag     = "opt_comentario",
+    Defecto  = false,
+    Tooltip  = "Agrega la URL como comentario arriba",
+    Callback = function(v) estado.conComentario = v; actualizarTodo() end,
+})
+
+secOpt:Toggle({
+    Texto    = "Solo funcion (no ejecutar)",
+    Flag     = "opt_solo_funcion",
+    Defecto  = false,
+    Tooltip  = "Devuelve la funcion sin llamarla",
+    Callback = function(v) estado.soloFuncion = v; actualizarTodo() end,
 })
 
 -- =====================================================================
---  8. SECCIÓN 3 · Resultado
+--  SECCION 4 - RESULTADO
 -- =====================================================================
-local secRes = Tab:CrearSeccion("Paso 3 · Resultado")
+local secRes = Tab:CrearSeccion("Paso 3 - Resultado")
 
 parrafoResultado = secRes:Parrafo({
     Titulo    = "Loadstring generado",
-    Contenido = "-- Pega una URL para comenzar",
+    Contenido = "-- Pega una URL",
 })
 
--- Grupo: Copiar + Limpiar
-local grupoAcciones = secRes:Grupo()
+lblStats = secRes:Label({
+    Texto = "Tamano",
+    Flag  = "res_stats",
+    Valor = "-",
+    Tooltip = "Cantidad de caracteres y lineas",
+})
 
+local grupoAcciones = secRes:Grupo()
 grupoAcciones:Boton({
-    Texto    = "📋 Copiar al portapapeles",
-    Tooltip  = "Copia el loadstring generado al portapapeles",
+    Texto    = "Copiar loadstring",
+    Tooltip  = "Copia el loadstring al portapapeles",
     Callback = function()
         if type(setclipboard) ~= "function" then
-            AlanUI:Notificar({
-                Titulo   = "⚠️ No soportado",
-                Texto    = "Tu ejecutor no permite copiar al portapapeles",
-                Tipo     = "Warning",
-                Duracion = 3,
-            })
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "No se puede copiar", Tipo = "Warning", Duracion = 3 })
             return
         end
         local ok = pcall(setclipboard, ultimoResultado)
+        if ok and estado.urlNormalizada ~= "" then
+            local h = agregarAlHistorial(estado.urlNormalizada)
+            if dropdownHistorial and dropdownHistorial.ActualizarOpciones then 
+                dropdownHistorial:ActualizarOpciones(h) 
+            end
+        end
         AlanUI:Notificar({
-            Titulo   = ok and "✅ Copiado" or "❌ Error",
-            Texto    = ok and "Loadstring en el portapapeles" or "No se pudo copiar",
-            Tipo     = ok and "Success" or "Error",
+            Titulo = ok and "Copiado" or "Error",
+            Texto  = ok and "En portapapeles" or "No se pudo copiar",
+            Tipo   = ok and "Success" or "Error",
             Duracion = 2,
         })
     end,
 })
-
 grupoAcciones:Boton({
-    Texto    = "🗑️ Limpiar",
+    Texto    = "Copiar URL raw",
+    Tooltip  = "Copia solo la URL raw",
+    Callback = function()
+        if estado.urlNormalizada == "" then
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "Falta URL", Tipo = "Warning", Duracion = 2 })
+            return
+        end
+        if type(setclipboard) ~= "function" then
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "No se puede copiar", Tipo = "Warning", Duracion = 3 })
+            return
+        end
+        local ok = pcall(setclipboard, estado.urlNormalizada)
+        AlanUI:Notificar({
+            Titulo = ok and "Copiado" or "Error",
+            Texto  = ok and estado.urlNormalizada or "No se pudo copiar",
+            Tipo   = ok and "Success" or "Error",
+            Duracion = 2,
+        })
+    end,
+})
+grupoAcciones:Boton({
+    Texto    = "Limpiar",
     Tooltip  = "Borra la URL y el resultado",
     Callback = function()
         estado.urlOriginal = ""
-        if AlanUI.Elementos and AlanUI.Elementos["url_input"] and AlanUI.Elementos["url_input"].Set then
-            AlanUI.Elementos["url_input"].Set("")
+        if AlanUI.Elementos and AlanUI.Elementos["url_input"] then
+            AlanUI.Elementos["url_input"]:Set("")
         end
         actualizarTodo()
     end,
 })
 
--- Botón de ejecución directa (con confirmación)
 secRes:Boton({
-    Texto    = "▶️ Ejecutar ahora",
-    Tooltip  = "Ejecuta el loadstring generado directamente. Solo si confías en el script",
+    Texto    = "Ejecutar ahora",
+    Tooltip  = "Ejecuta el loadstring. Solo si confias",
     Callback = function()
         if estado.urlOriginal == "" then
-            AlanUI:Notificar({
-                Titulo   = "⚠️ Sin URL",
-                Texto    = "Pega una URL primero",
-                Tipo     = "Warning",
-                Duracion = 2,
-            })
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "Falta URL", Tipo = "Warning", Duracion = 2 })
+            return
+        end
+        if estado.soloFuncion then
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "Desactiva 'Solo funcion'", Tipo = "Info", Duracion = 3 })
             return
         end
 
-        -- Confirmación antes de ejecutar código externo
         AlanUI:Dialogo({
             Tipo      = "warning",
-            Titulo    = "¿Ejecutar script externo?",
-            Contenido = "Vas a ejecutar código de una fuente externa. Solo continúa si confías en el script.",
+            Titulo    = "Ejecutar script?",
+            Contenido = "Vas a ejecutar codigo externo. Continua solo si confias.",
             BotonAceptar = {
-                Texto     = "Ejecutar",
-                Variante  = "danger",
-                Callback  = function()
+                Texto = "Ejecutar", Variante = "danger",
+                Callback = function()
                     local fn, err = loadstring(ultimoResultado)
                     if not fn then
-                        warn("[Loadstringer] Error al compilar:", err)
+                        warn("[Loadstringer] Error de sintaxis:", err)
                         AlanUI:Notificar({
-                            Titulo   = "❌ Error de sintaxis",
-                            Texto    = tostring(err):sub(1, 120),
-                            Tipo     = "Error",
+                            Titulo = "Error de sintaxis",
+                            Texto  = tostring(err):sub(1, 120),
+                            Tipo   = "Error",
                             Duracion = 5,
                         })
                         return
                     end
-
+                    local h = agregarAlHistorial(estado.urlNormalizada)
+                    if dropdownHistorial and dropdownHistorial.ActualizarOpciones then 
+                        dropdownHistorial:ActualizarOpciones(h) 
+                    end
                     task.spawn(function()
                         local ok, execErr = pcall(fn)
-                        if not ok then
+                        if ok then
+                            AlanUI:Notificar({ Titulo = "Ejecutado", Texto = "Script lanzado", Tipo = "Success", Duracion = 3 })
+                        else
                             warn("[Loadstringer] Error al ejecutar:", execErr)
+                            AlanUI:Notificar({
+                                Titulo = "Error",
+                                Texto  = tostring(execErr):sub(1, 120),
+                                Tipo   = "Error",
+                                Duracion = 5,
+                            })
                         end
                     end)
-
-                    AlanUI:Notificar({
-                        Titulo   = "▶️ Ejecutando",
-                        Texto    = "Script lanzado en segundo plano",
-                        Tipo     = "Info",
-                        Duracion = 2,
-                    })
                 end,
             },
         })
@@ -298,7 +512,113 @@ secRes:Boton({
 })
 
 -- =====================================================================
---  9. Generación inicial (para que no arranque vacío)
+--  SECCION 5 - VISTA PREVIA
 -- =====================================================================
-actualizarTooltipsOS = nil -- preventivo
-actualizarTodo()
+local secPrev = Tab:CrearSeccion("Vista previa", {
+    Colapsable = true,
+    ColapsadaPorDefecto = true,
+})
+
+secPrev:Boton({
+    Texto    = "Previsualizar URL",
+    Tooltip  = "Descarga y muestra el contenido sin ejecutarlo",
+    Callback = function()
+        if estado.urlOriginal == "" then
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "Falta URL", Tipo = "Warning", Duracion = 2 })
+            return
+        end
+        if estado.urlNormalizada == "" then
+            AlanUI:Notificar({ Titulo = "Error", Texto = "URL invalida", Tipo = "Error", Duracion = 3 })
+            return
+        end
+
+        local url   = estado.urlNormalizada
+        local cache = cachePreview[url]
+        if cache and (os.clock() - cache.t) < PREVIEW_TTL then
+            parrafoPreview:Set(cache.content)
+            AlanUI:Notificar({ Titulo = "Aviso", Texto = "Usando cache (60s)", Tipo = "Info", Duracion = 2 })
+            return
+        end
+
+        parrafoPreview:Set("Descargando " .. url .. " ...")
+        AlanUI:Notificar({ Titulo = "Descargando", Texto = "Espera un momento...", Tipo = "Info", Duracion = 2 })
+
+        task.spawn(function()
+            local ok, resultado = pcall(function()
+                return game:HttpGet(url, true)
+            end)
+
+            if not ok then
+                parrafoPreview:Set("Error al descargar:\n\n" .. tostring(resultado))
+                AlanUI:Notificar({ Titulo = "Error", Texto = "No se pudo descargar", Tipo = "Error", Duracion = 3 })
+                return
+            end
+            if resultado == nil then
+                parrafoPreview:Set("La URL devolvio nil")
+                return
+            end
+            if type(resultado) ~= "string" then
+                resultado = tostring(resultado)
+            end
+            resultado = resultado:gsub("\r\n", "\n"):gsub("\r", "\n")
+
+            local contenidoMostrar = resultado
+            if #contenidoMostrar > PREVIEW_LIMITE then
+                contenidoMostrar = contenidoMostrar:sub(1, PREVIEW_LIMITE)
+                    .. "\n\n[Truncado: " .. #resultado .. " caracteres totales]"
+            end
+
+            cachePreview[url] = { content = contenidoMostrar, t = os.clock() }
+            parrafoPreview:Set(contenidoMostrar)
+
+            local h = agregarAlHistorial(url)
+            if dropdownHistorial and dropdownHistorial.ActualizarOpciones then 
+                dropdownHistorial:ActualizarOpciones(h) 
+            end
+
+            AlanUI:Notificar({
+                Titulo = "Descargado",
+                Texto  = #resultado .. " caracteres",
+                Tipo   = "Success",
+                Duracion = 2,
+            })
+        end)
+    end,
+})
+
+parrafoPreview = secPrev:Parrafo({
+    Titulo    = "Contenido",
+    Contenido = "Presiona el boton para ver el script.",
+})
+
+-- =====================================================================
+--  FUNCION CENTRAL
+-- =====================================================================
+actualizarTodo = function()
+    local normalizada, tipo = normalizarURL(estado.urlOriginal)
+    estado.urlNormalizada = normalizada
+    estado.tipoDetectado  = tipo
+
+    if lblTipoURL and lblTipoURL.Set then lblTipoURL:Set(tipo) end
+
+    ultimoResultado = generarLoadstring()
+    if parrafoResultado and parrafoResultado.Set then parrafoResultado:Set(ultimoResultado) end
+
+    if lblStats and lblStats.Set then
+        local nChars = #ultimoResultado
+        local _, nSaltos = ultimoResultado:gsub("\n", "")
+        local nLineas = nSaltos + 1
+        lblStats:Set(formatearTamano(nChars) .. " | " .. nLineas .. " lineas")
+    end
+end
+
+task.defer(function()
+    if dropdownHistorial then
+        historialCache = nil
+        local opts = cargarHistorial()
+        if dropdownHistorial.ActualizarOpciones then
+            dropdownHistorial:ActualizarOpciones(opts)
+        end
+    end
+    actualizarTodo()
+end)
