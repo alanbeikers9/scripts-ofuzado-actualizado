@@ -51,4 +51,8 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-
 15, generador de load
 loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/generador%20de%20load.txt"))()
 
+16.techs modernos
+loadstring(game:HttpGet("https://raw.githubusercontent.com/alanbeikers9/scripts-ofuzado-actualizado/refs/heads/main/Techs_moderno.lua"))()
+
+
 estos son scripts creados por alanbeikers11
